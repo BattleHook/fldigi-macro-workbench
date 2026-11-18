@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Macro Workbench for fldigi</title>
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #1e1e1e; color: #f0f0f0; margin: 20px; }
+  h2 { margin-top: 0; font-size: 20px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; background: #2b2b2b; padding: 12px; border-radius: 6px; border: 1px solid #3c3c3c; }
+  button, .btn { background: #0078d4; color: #fff; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; display: inline-block; }
+  button:hover, .btn:hover { background: #106ebe; }
+  select { padding: 7px 10px; border-radius: 4px; background: #3c3c3c; color: #fff; border: 1px solid #555; font-size: 13px; }
+  #status { margin-left: auto; font-size: 13px; color: #9cdcfe; font-weight: 500; }
+  .bank-title { margin: 12px 0 4px; font-size: 12px; color: #aaa; font-weight: bold; }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
+  .slot { border: 1px solid #555; border-radius: 3px; padding: 5px 4px; text-align: center; cursor: grab; min-height: 44px; display: flex; flex-direction: column; justify-content: center; user-select: none; overflow: hidden; transition: filter 0.1s; }
+  .slot:hover { filter: brightness(1.15); }
+  .grp-0 { background: #3b6e75; border-color: #54929b; }
+  .grp-1 { background: #7a4242; border-color: #a35a5a; }
+  .grp-2 { background: #464e7a; border-color: #626ea8; }
+  .slot.empty { opacity: 0.55; }
+  .slot.selected { outline: 2px solid #ffcc00; opacity: 1; z-index: 2; }
+  .slot.drag-over { border: 2px dashed #ffffff; filter: brightness(1.3); }
+  .slot-num { font-size: 10px; color: rgba(255,255,255,0.75); margin-bottom: 2px; }
+  .slot-lbl { font-size: 12px; font-weight: bold; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+  .sym { display: inline-block; font-style: normal; }
+  .bottom-panel { display: grid; grid-template-columns: minmax(0, 1fr) 540px; gap: 16px; margin-top: 20px; }
+  .editor-box, .palette-box { min-width: 0; background: #2b2b2b; padding: 14px; border-radius: 6px; border: 1px solid #3c3c3c; display: flex; flex-direction: column; gap: 10px; }
+  input[type="text"], textarea { background: #1e1e1e; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 8px; font-family: Consolas, monospace; font-size: 13px; width: 100%; box-sizing: border-box; }
+  textarea { height: 140px; resize: vertical; }
+  .command-picker { display: grid; gap: 8px; border-top: 1px solid #555; padding-top: 10px; }
+  .command-tabs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px; padding: 0 6px; margin-bottom: -8px; }
+  .command-tab { position: relative; margin-bottom: -1px; padding: 7px 8px; border: 1px solid #555; border-radius: 6px 6px 0 0; background: #222; color: #c8c8c8; font-size: 12px; }
+  .command-tab:hover { background: #373737; color: #fff; }
+  .command-tab[aria-selected="true"] { z-index: 1; background: #303030; color: #fff; border-bottom-color: #303030; box-shadow: inset 0 3px #9cdcfe; }
+  .command-tab:focus-visible { z-index: 2; outline: 2px solid #ffcc00; outline-offset: -4px; }
+  .command-list { display: flex; flex-wrap: wrap; gap: 5px; }
+  .command-list.is-filterable { max-height: 170px; overflow-y: auto; padding: 3px; }
+  .command-option { background: #3a3a3a; border: 1px solid #555; padding: 5px 8px; font: 600 12px Consolas, monospace; overflow-wrap: anywhere; min-width: 0; }
+  .command-option[aria-pressed="true"] { background: #165785; border-color: #9cdcfe; }
+  .command-panel { display: grid; gap: 8px; padding: 10px; background: #303030; border: 1px solid #555; border-radius: 0 0 6px 6px; }
+  .command-details { margin: 0; font-size: 13px; overflow-wrap: anywhere; white-space: pre-line; }
+  .command-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .command-append { justify-self: start; }
+  .command-append:disabled { background: #3a3a3a; color: #aaa; cursor: default; }
+  .date-builder { border-top: 1px solid #555; padding-top: 8px; }
+  .date-builder summary { cursor: pointer; font-weight: 600; }
+  .date-fields { display: grid; gap: 8px; margin-top: 8px; }
+  .date-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .date-preview { margin: 0; overflow-wrap: anywhere; }
+  .date-preview code { white-space: pre-wrap; }
+  .date-error { color: #ffb6a8; }
+  .sym-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 5px; }
+  .sym-btn { min-width: 0; overflow-wrap: anywhere; background: #3a3a3a; color: #fff; border: 1px solid #555; border-radius: 3px; padding: 6px 2px; text-align: center; cursor: pointer; font-size: 11px; }
+  .sym-btn:hover { background: #505050; border-color: #888; }
+  .sym-btn span { display: block; font-size: 15px; margin-bottom: 2px; }
+  .hint { font-size: 11px; color: #aaa; margin: 0; line-height: 1.5; }
+  @media (max-width: 960px) {
+    .bottom-panel { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<h2>Macro Workbench for fldigi</h2>
+
+<div class="toolbar">
+  <label for="fileInput" class="btn">Open .mdf File</label>
+  <input type="file" id="fileInput" accept=".mdf,.txt" style="display:none;">
+  <button type="button" id="downloadBtn">Save a copy&hellip;</button>
+  <span>Drag Mode:</span>
+  <select id="dragMode">
+    <option value="swap">Swap (Exchange 2 buttons)</option>
+    <option value="insert">Insert (Shift buttons)</option>
+  </select>
+  <span id="status">Ready to open a .mdf file</span>
+</div>
+
+<div id="banksContainer"></div>
+
+<div class="bottom-panel">
+  <div class="editor-box">
+    <div><strong id="editHeader">Selected Button: Macro #1 (index 0)</strong></div>
+    <input type="text" id="editLabel" placeholder="Button label (e.g. CQ 15s @-2refresh)">
+    <textarea id="editBody" placeholder="Macro commands (e.g. <TX>CQ CQ...<RX>)"></textarea>
+    <p class="hint">Line breaks are shown normally here and exported as fldigi <code>\n</code> markers. They are not transmitted as literal backslash-n text.</p>
+    <section class="command-picker" aria-labelledby="commandHeading">
+      <strong id="commandHeading">Macro Commands</strong>
+      <p class="hint">Click for details. Use Insert to add a command at the cursor, or double-click or use Append to add it at the end. Edit any example parameters before using the macro.</p>
+      <div class="command-tabs" id="commandTabs" role="tablist" aria-label="Macro command categories"></div>
+      <div class="command-panel" id="commandPanel" role="tabpanel">
+        <label id="commandFilterRow" hidden>
+          <input type="text" id="commandFilter" aria-label="Filter modem presets" placeholder="Filter modem presets (e.g. RTTY)" autocomplete="off">
+        </label>
+        <div class="command-list" id="commandList"></div>
+        <p class="command-details" id="commandDetails" aria-live="polite"></p>
+        <div class="command-actions">
+          <button type="button" class="command-append" id="commandInsert" disabled>Insert command</button>
+          <button type="button" class="command-append" id="commandAppend" disabled>Append command</button>
+        </div>
+        <details class="date-builder" id="dateBuilder" hidden>
+          <summary>Date/Time Builder</summary>
+          <div class="date-fields">
+            <div class="date-controls">
+              <label>Output
+                <select id="dateOutput">
+                  <option value="both">Date and time</option>
+                  <option value="date">Date</option>
+                  <option value="time">Time</option>
+                </select>
+              </label>
+              <label><input type="checkbox" id="dateLocal"> Use local time (default: UTC)</label>
+            </div>
+            <label for="dateFormat">Format</label>
+            <input type="text" id="dateFormat" aria-describedby="dateFormatHelp dateError" autocomplete="off" spellcheck="false">
+            <p class="hint" id="dateFormatHelp">Common format codes: <code>%Y-%m-%d</code> (date), <code>%H:%M:%S</code> (24-hour time), <code>%I:%M %p</code> (12-hour time), <code>%a %d %b</code> (weekday and month names), <code>%z</code> (offset), <code>%%</code> (percent). Changing Output or Local reloads its default format.</p>
+            <div aria-live="polite">
+              <p class="date-preview">Tag: <code id="dateTag"></code></p>
+              <p class="date-preview">Example: <code id="dateExample"></code></p>
+              <p class="hint date-error" id="dateError" hidden></p>
+            </div>
+            <p class="hint">The example uses this browser's date, clock and locale. fldigi substitutes its own date and time when the macro runs.</p>
+            <button type="button" class="command-append" id="dateAppend">Append date/time tag</button>
+          </div>
+        </details>
+      </div>
+      <p class="hint"><a href="https://www.w1hkj.org/FldigiHelp/macros_sub_page.html" target="_blank" rel="noopener" style="color:#9cdcfe;">Fldigi Help: Macros</a></p>
+    </section>
+  </div>
+
+  <div class="palette-box">
+    <div><strong>FLTK @ Symbols (Click to append)</strong></div>
+    <div class="sym-grid" id="symPalette"></div>
+    <p class="hint">Attach modifiers to the symbol without spaces: <code>@-2refresh</code> smaller, <code>@+3refresh</code> larger. <code>@@</code> displays a literal @.</p>
+    <p class="hint">Order after @: <code>#</code> square proportions; <code>+1..+9</code> / <code>-1..-9</code> size; <code>$</code> horizontal flip / <code>%</code> vertical flip; rotation; then the symbol name.</p>
+    <p class="hint">Rotation follows the numeric keypad: <code>@8-&gt;</code> up, <code>@2-&gt;</code> down, <code>@4-&gt;</code> left; 5/6 leave it unchanged. Use 0 plus four digits for an angle, e.g. <code>@00090-&gt;</code>. <code>@+92-&gt;</code> is a large downward arrow.</p>
+    <p class="hint">Keep symbols at the beginning/end of the label. SVG previews follow FLTK symbol geometry; sizing, shading and antialiasing can differ from fldigi. <a href="https://www.fltk.org/doc-1.4/common.html#common_labels" target="_blank" rel="noopener" style="color:#9cdcfe;">FLTK reference</a></p>
+  </div>
+</div>
+
+<script>
+(function() {
+  var TOTAL = 48;
+  var macros = [];
+  for (var i = 0; i < TOTAL; i++) {
+    macros.push({ label: '', body: '' });
+  }
+  var selectedIdx = 0;
+  var dragSrcIdx = null;
+  var currentFileName = 'macros_updated.mdf';
+
+  var MODEM_PRESETS = [
+    '8PSK250 8PSK500 8PSK1000 8PSK1333 BPSK1000 BPSK125 BPSK250 BPSK31 BPSK500 BPSK63 BPSK63F',
+    'CTSTIA:1000:16 CTSTIA:1000:8 CTSTIA:250:8 CTSTIA:500:16 CTSTIA:500:8 CTSTIA CW',
+    'DOMEX4 DOMEX5 DOMEX8 DOMX11 DOMX16 DOMX22 DOMX44 DOMX88 FELDHELL FSKH105 FSKHELL HELL80 HELLX5 HELLX9',
+    'MFSK11 MFSK128 MFSK128L MFSK16 MFSK22 MFSK31 MFSK32 MFSK4 MFSK64 MFSK64L MFSK8',
+    'MT63-1KL MT63-1KS MT63-2KL MT63-2KS MT63-500L MT63-500S NAVTEX',
+    'Olivia-16-1K Olivia-16-500 Olivia-32-1K Olivia-4-250 Olivia-4-500 Olivia-64-2K Olivia-8-1K Olivia-8-250 Olivia-8-500',
+    'OLIVIA:1000:32 OLIVIA:1000:8 OLIVIA:250:8 OLIVIA:500:16 OLIVIA:500:8 OLIVIA',
+    'PSK1000C2 PSK1000R PSK1000RC2 PSK125C12 PSK125R PSK125RC10 PSK125RC12 PSK125RC16 PSK125RC4 PSK125RC5',
+    'PSK250C6 PSK250R PSK250RC2 PSK250RC3 PSK250RC5 PSK250RC6 PSK250RC7 PSK500C2 PSK500C4 PSK500R',
+    'PSK500RC2 PSK500RC3 PSK500RC4 PSK63RC10 PSK63RC20 PSK63RC32 PSK63RC4 PSK63RC5 PSK800C2 PSK800RC2',
+    'QPSK125 QPSK250 QPSK31 QPSK500 QPSK63 RTTY:170:45.45:5 RTTY:170:50:5 RTTY:850:75:5 RTTY SITORB',
+    'SLOWHELL THOR100 THOR11 THOR16 THOR22 THOR25x4 THOR4 THOR5 THOR50x1 THOR50x2 THOR8',
+    'THRBX1 THRBX2 THRBX4 THROB1 THROB2 THROB4 WEFAX288 WEFAX576'
+  ].join(' ').split(' ').map(function(preset) {
+    return ['MODEM:' + preset, 'Switch the fldigi modem to ' + preset + '.'];
+  });
+
+  var INLINE_QSY = ['!QSY:14070.0:1500', 'Change RF (kHz) and optionally waterfall audio (Hz). Also accepts increasing semicolon-separated RF frequencies and positive stepped ranges, like <QSY>.'];
+
+  var COMMAND_GROUPS = [
+    ['TX / RX', [
+      ['TX', 'Switch to transmit.'], ['RX', 'Switch to receive.'],
+      ['TX/RX', 'Toggle between transmit and receive.'],
+      ['WAIT:2', 'Wait the specified number of seconds before transmitting.'],
+      ['IDLE:2.0', 'Send the idle signal for this many seconds.'],
+      ['TUNE:2', 'Send a tuning tone for this many seconds.'],
+      ['PAUSE', 'Pause transmission here. Press Pause/Break to resume.'],
+      ['CWID', 'Send your callsign in CW.'], ['ID', 'Send the mode as a waterfall ID.'],
+      ['TEXT', 'Send the waterfall text defined in the ID configuration.'],
+      ['TXRSID:on', 'Set transmit RSID: on, off, or t (toggle).'],
+      ['RXRSID:on', 'Set receive RSID: on, off, or t (toggle).'],
+      ['NRSID:1', 'Send this many RSID bursts. A negative count returns to receive afterward; zero sends one burst.'],
+      ['TXATTEN:-10.0', 'Set transmit attenuation between -30 and 0 dB.'],
+      ['WPM:20', 'Set CW speed. Add :ff for an optional Farnsworth speed.'],
+      ['PRE:5.0', 'Set CW QSK pre-timing in milliseconds.'],
+      ['POST:5.0', 'Set CW QSK post-timing in milliseconds.'],
+      ['RISE:5.0', 'Set CW rise time in milliseconds.'],
+      ['DTMF:123', 'Send DTMF digits at the start of transmission. Optional Wn: and Ln: set wait and tone length in milliseconds.']
+    ]],
+    ['Station / QSO', [
+      ['MYCALL', 'Insert your configured callsign.'], ['MYNAME', 'Insert your configured name.'],
+      ['MYQTH', 'Insert your configured QTH.'], ['MYLOC', 'Insert your configured grid locator.'],
+      ['MYRST', 'Insert your RST.'], ['ANTENNA', 'Insert your configured antenna.'],
+      ['CALL', 'Insert the other station’s callsign.'], ['NAME', 'Insert the other operator’s name.'],
+      ['QTH', 'Insert the other station’s QTH.'], ['LOC', 'Insert the other station’s grid locator.'],
+      ['RST', 'Insert the other station’s RST.'],
+      ['INFO1', 'Insert the first status-bar reading, such as signal-to-noise ratio.'],
+      ['INFO2', 'Insert the second status-bar reading, such as IMD.'],
+      ['FREQ', 'Insert your operating frequency.'], ['MODE', 'Insert the current mode.'],
+      ['DIGI', 'Insert the ADIF mode code.'], ['WFFREQ', 'Insert the tracked audio frequency.'],
+      ['VER', 'Insert the fldigi version.']
+    ]],
+    ['Log / Contest', [
+      ['LOG', 'Write the current QSO to the logbook immediately.'],
+      ['LNW', 'Write the QSO to the logbook at transmit time.'],
+      ['CLRLOG', 'Clear the QSO log fields.'],
+      ['EQSL:message', 'Submit the current QSO to eQSL with optional message text. Put this before <LOG> or <LNW>.'],
+      ['GET', 'Copy received text into the Name and QTH fields.'],
+      ['MAPIT', 'Show the other station’s grid locator on a map. Add :adr, :lat, or :loc to choose the source.'],
+      ['CNTR', 'Insert the current contest counter.'], ['INCR', 'Increase the contest counter.'],
+      ['DECR', 'Decrease the contest counter.'], ['XIN', 'Insert the received contest exchange.'],
+      ['XOUT', 'Insert the outgoing contest exchange.'],
+      ['XBEG', 'Mark the beginning of text to capture as a contest exchange.'],
+      ['XEND', 'Mark the end of text to capture as a contest exchange.'],
+      ['SAVEXCHG', 'Save the marked contest exchange.'],
+      ['FDCLASS', 'Insert the received Field Day class.'],
+      ['FDSECT', 'Insert the received Field Day section.']
+    ]],
+    ['Time / Weather', [
+      ['QSOTIME', 'Insert the current logbook time as HHMM.'],
+      ['ILDT', 'Insert ISO-8601 local date and time. Custom format example: <ILDT:%Y-%m-%d %H:%M%z>.'],
+      ['IZDT', 'Insert ISO-8601 UTC date and time. Custom format example: <IZDT:%Y-%m-%dT%TZ>.'],
+      ['LDT', 'Insert local date and time. Custom format example: <LDT:%Y-%m-%d %T>.'],
+      ['ZDT', 'Insert UTC date and time. Custom format example:\n<ZDT:%a %d %b %Y %T UTC>'],
+      ['LT', 'Insert local time. Custom format example: <LT:%H:%M>.'],
+      ['ZT', 'Insert UTC time. Custom format examples:\n<ZT:%H%M%S Z>\n<ZT:%T UTC>'],
+      ['LD', 'Insert the local date. Custom format example: <LD:%d %b %Y>.'],
+      ['ZD', 'Insert the UTC date. Custom format example: <ZD:%Y-%m-%d>.'],
+      ['WX', 'Insert configured METAR weather. Add : followed by a four-letter station code to override it.'],
+      ['AFTER:30', 'Repeat this macro after this many seconds.'],
+      ['TIMER:30', 'Repeat this macro at this interval in seconds.'],
+      ['REPEAT', 'Repeat this macro continuously.'],
+      ['SKED:1200', 'Schedule the macro for HHMM in UTC by default. The manual also documents an optional :YYYYDDMM date.'],
+      ['LOCAL', 'Place before <SKED:...> to use local time instead of UTC.']
+    ]],
+    ['Rig / Modem', [
+      ['MODEM:BPSK31', 'Switch to BPSK31. See the Modems tab for other presets.'],
+      ['SRCHUP', 'Search up for the next signal.'], ['SRCHDN', 'Search down for the next signal.'],
+      ['GOHOME', 'Return the waterfall cursor to the sweet spot.'],
+      ['GOFREQ:1500', 'Move the waterfall cursor to this audio frequency in Hz.'],
+      ['PUSH', 'Remember the current mode and frequency. Add :m or :f to remember only one.'],
+      ['POP', 'Restore the mode and/or frequency saved by <PUSH>.'],
+      ['AFC:on', 'Set automatic frequency control: on, off, or t (toggle).'],
+      ['LOCK:on', 'Set waterfall cursor lock: on, off, or t (toggle).'],
+      ['REV:on', 'Set reverse mode: on, off, or t (toggle).'],
+      ['RIGMODE:mode', 'Request a radio mode change through flrig. Replace mode with the radio mode.'],
+      ['FILWID:width', 'Request a filter width change through flrig. Replace width with the filter width.'],
+      ['FLRIG:"command"', 'Send a CAT set command through flrig. Use a quoted string or hexadecimal bytes.'],
+      ['RIGCAT:"command"', 'Send a RigCAT command. Use a quoted string or hexadecimal bytes; optionally add :replyBytes.'],
+      ['QRG:text', 'Put the current operating settings and your text into the receive pane.']
+    ]],
+    ['QSY', [
+      ['QSY:14070.0', 'Set the transceiver RF in kHz (14070.0 kHz = 14.070 MHz). Use a decimal point. Add :1500 to also set the waterfall audio frequency to 1500 Hz.'],
+      ['QSY:14070.0:1500', 'Set the transceiver to 14.070 MHz and waterfall audio to 1500 Hz before sending the macro text.'],
+      ['QSY:14070;14071;14072:1500', 'Choose the first RF frequency above the current one; wrap to the first in the list if none is higher. Separate strictly increasing, positive RF frequencies (kHz) with semicolons. The optional :1500 sets the same audio frequency in Hz for every entry.'],
+      ['QSY:14070+1;14072', 'Scan from 14070 to 14072 kHz in 1 kHz steps, choosing the next frequency on each run. The increment must be positive; the last frequency is the upper limit. Can be combined with <TIMER> to repeat automatically.'],
+      INLINE_QSY,
+      ['QSYTO', 'Perform the same action as left-clicking QSY.'],
+      ['QSYFM', 'Perform the same action as right-clicking QSY.']
+    ]],
+    ['Inline TX', [
+      ['!WPM:20', 'Set CW speed in words per minute. Add :ff for an optional Farnsworth speed.'],
+      ['!PRE:0.4', 'Set CW QSK pre-timing in milliseconds.'],
+      ['!POST:+0.2', 'Set CW QSK post-timing in milliseconds.'],
+      ['!RISE:1.0', 'Set CW rise time in milliseconds.'],
+      ['!MODEM:MFSK32', 'Change the fldigi modem to MFSK32. Replace MFSK32 with the desired modem and any parameters it requires.'],
+      ['!GOHOME', 'Move the audio carrier to the modem sweet spot.'],
+      ['!GOFREQ:600', 'Set the audio carrier frequency in Hz.'],
+      INLINE_QSY,
+      ['!IDLE:2', 'Send the idle signal for this many seconds.'],
+      ['!WAIT:2', 'Wait this many seconds without audio.'],
+      ['!PUSH', 'Remember the current mode and frequency. Add :m or :f to remember only one.'],
+      ['!POP', 'Restore the mode and/or frequency saved by a PUSH command.'],
+      ['!DIGI', 'Insert the current ADIF mode code.'],
+      ['!FREQ', 'Insert the current RF transmit modem center frequency.']
+    ]],
+    ['After RX', [
+      ['@MODEM:MFSK32', 'Change the fldigi modem to MFSK32. Replace MFSK32 with the desired modem and any parameters it requires.'],
+      ['@RIGCAT:"command"', 'Send a RigCAT command as a quoted string or hexadecimal bytes. Optionally add :replyBytes; the default is zero.'],
+      ['@GOHOME', 'Return the waterfall cursor to the sweet spot.'],
+      ['@GOFREQ:1200', 'Move the waterfall cursor to this audio frequency in Hz.'],
+      ['@RIGMODE:mode', 'Request a supported transceiver mode. Replace mode with the desired mode.'],
+      ['@FILWID:width', 'Request a supported transceiver filter width. Replace width with the desired width.'],
+      ['@TXRSID:on', 'Set transmit RSID: on, off, or t (toggle).'],
+      ['@PUSH', 'Remember the current mode and frequency. Add :m or :f to remember only one.'],
+      ['@POP', 'Restore the mode and/or frequency saved by a PUSH command.']
+    ]],
+    ['Files / Tools', [
+      ['SAVE', 'Save the current macro definitions to the current file. This picker adds the required line break after the tag.', '\n'],
+      ['MACROS:filename', 'Load a different macro definitions file. Replace filename with the actual path.'],
+      ['FILE:filename', 'Insert text from a file. Replace filename with the actual path.'],
+      ['IMAGE:filename', 'Transmit an image from a file. Use <IMAGE:G,filename> for grayscale.'],
+      ['AUDIO:filename', 'Transmit audio from a WAV or MP3 file. Use the full path.'],
+      ['VIDEO:text', 'Transmit the text as a waterfall image.'],
+      ['ALERT:bark', 'Play an audio alert. Use a built-in sound name or the path to a WAV file.'],
+      ['TALK:on', 'Control Digitalk on Windows: on, off, or t (toggle). Digitalk must be running.'],
+      ['CLRRX', 'Clear the receive pane.'], ['CLRTX', 'Clear the transmit pane.'],
+      ['FOCUS', 'Give the rig frequency display keyboard focus.'],
+      ['COMMENT:text', 'Add a comment that fldigi ignores when running the macro.'],
+      ['CPS_TEST', 'Measure modem speed using built-in text.'],
+      ['CPS_FILE:filename', 'Measure modem speed using text from the specified file.'],
+      ['CPS_STRING:text', 'Measure modem speed using the supplied text.'],
+      ['WAV_TEST', 'Generate a WAV file using built-in text.'],
+      ['WAV_FILE:filename', 'Generate a WAV file using text from the specified file.'],
+      ['WAV_STRING:text', 'Generate a WAV file using the supplied text.']
+    ]],
+    ['Modems', MODEM_PRESETS, true]
+  ];
+
+  function renderDateTimeBuilder(appendCommand) {
+    var builder = document.getElementById('dateBuilder');
+    var output = document.getElementById('dateOutput');
+    var local = document.getElementById('dateLocal');
+    var format = document.getElementById('dateFormat');
+    var tagPreview = document.getElementById('dateTag');
+    var example = document.getElementById('dateExample');
+    var error = document.getElementById('dateError');
+    var append = document.getElementById('dateAppend');
+    var types = {
+      both: { tag: 'DT', utc: '%Y-%m-%d %H:%M UTC', local: '%Y-%m-%d %H:%M %z' },
+      date: { tag: 'D', utc: '%Y-%m-%d', local: '%Y-%m-%d' },
+      time: { tag: 'T', utc: '%H:%M:%S UTC', local: '%H:%M:%S %z' }
+    };
+    var command = '';
+
+    function updatePreview() {
+      var d = new Date();
+      var get = function(part) { return d['get' + (local.checked ? '' : 'UTC') + part](); };
+      var pad = function(n) { return String(n).padStart(2, '0'); };
+      var year = String(get('FullYear'));
+      var month = pad(get('Month') + 1);
+      var day = pad(get('Date'));
+      var hour = get('Hours');
+      var clock = pad(hour) + ':' + pad(get('Minutes'));
+      var seconds = pad(get('Seconds'));
+      var offset = local.checked ? -d.getTimezoneOffset() : 0;
+      var offsetText = (offset < 0 ? '-' : '+') + pad(Math.floor(Math.abs(offset) / 60)) + pad(Math.abs(offset) % 60);
+      var localized = function(part, length) {
+        var options = {};
+        options[part] = length;
+        if (!local.checked) options.timeZone = 'UTC';
+        return d.toLocaleDateString(undefined, options);
+      };
+      var codes = {
+        Y: year, y: year.slice(-2), m: month, d: day, H: pad(hour), M: pad(get('Minutes')), S: seconds,
+        I: pad(hour % 12 || 12), p: hour < 12 ? 'AM' : 'PM',
+        a: localized('weekday', 'short'), A: localized('weekday', 'long'),
+        b: localized('month', 'short'), B: localized('month', 'long'),
+        F: year + '-' + month + '-' + day, R: clock, T: clock + ':' + seconds,
+        z: offsetText, '%': '%'
+      };
+      var input = format.value;
+      var message = '';
+      if (!input.trim()) message = 'Enter a format for the tag.';
+      else if (/[<>\r\n]|\\n/.test(input)) message = 'Do not use angle brackets or line breaks inside a date/time format.';
+      var sample = input.replace(/%([\s\S]|$)/g, function(token, code) {
+        if (Object.prototype.hasOwnProperty.call(codes, code)) return codes[code];
+        if (!message) message = 'Format code ' + token + ' is not supported by this builder.';
+        return token;
+      });
+      command = message ? '' : (local.checked ? 'L' : 'Z') + types[output.value].tag + ':' + input;
+      tagPreview.textContent = command ? '<' + command + '>' : '\u2014';
+      example.textContent = command ? sample : '\u2014';
+      error.textContent = message;
+      error.hidden = !message;
+      format.setAttribute('aria-invalid', String(Boolean(message)));
+      append.disabled = Boolean(message);
+    }
+
+    function loadDefaultFormat() {
+      format.value = types[output.value][local.checked ? 'local' : 'utc'];
+      updatePreview();
+    }
+
+    output.onchange = local.onchange = loadDefaultFormat;
+    format.oninput = updatePreview;
+    builder.ontoggle = function() { if (builder.open) updatePreview(); };
+    append.onclick = function() { if (command) appendCommand([command]); };
+    loadDefaultFormat();
+    return builder;
+  }
+
+  function renderCommandPicker() {
+    var tabs = document.getElementById('commandTabs');
+    var panel = document.getElementById('commandPanel');
+    var filterRow = document.getElementById('commandFilterRow');
+    var filter = document.getElementById('commandFilter');
+    var list = document.getElementById('commandList');
+    var details = document.getElementById('commandDetails');
+    var insert = document.getElementById('commandInsert');
+    var append = document.getElementById('commandAppend');
+    var selectedCommand = null;
+    var activeGroupIndex = 0;
+    var tabButtons = [];
+    var dateBuilder = renderDateTimeBuilder(appendCommand);
+
+    function appendCommand(command) {
+      writeCommand(command, false);
+    }
+
+    function writeCommand(command, atCursor) {
+      var body = document.getElementById('editBody');
+      var position = atCursor ? body.selectionStart : body.value.length;
+      var text = '<' + command[0] + '>' + (command[2] || '');
+      body.setRangeText(text, position, position, 'end');
+      body.dispatchEvent(new Event('input', { bubbles: true }));
+      body.focus();
+      if (!atCursor) body.scrollTop = body.scrollHeight;
+    }
+
+    function activateGroup(index) {
+      activeGroupIndex = index;
+      tabButtons.forEach(function(tab, i) {
+        tab.setAttribute('aria-selected', String(i === index));
+        tab.tabIndex = i === index ? 0 : -1;
+      });
+      panel.setAttribute('aria-labelledby', tabButtons[index].id);
+      var isFilterable = COMMAND_GROUPS[index][2] === true;
+      filterRow.hidden = !isFilterable;
+      dateBuilder.hidden = COMMAND_GROUPS[index][0] !== 'Time / Weather';
+      list.classList.toggle('is-filterable', isFilterable);
+      filter.value = '';
+      renderCommands();
+    }
+
+    function renderCommands() {
+      list.textContent = '';
+      list.scrollTop = 0;
+      selectedCommand = null;
+      insert.disabled = true;
+      append.disabled = true;
+      var query = filter.value.trim().toLowerCase();
+      var commands = COMMAND_GROUPS[activeGroupIndex][1].filter(function(command) {
+        return ('<' + command[0] + '>').toLowerCase().includes(query);
+      });
+      details.textContent = commands.length ? 'Select a command to see what it does.' : 'No modem presets match your filter.';
+      commands.forEach(function(command) {
+        var option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'command-option';
+        option.textContent = '<' + command[0] + '>';
+        option.setAttribute('aria-pressed', 'false');
+        option.onclick = function() {
+          var previous = list.querySelector('[aria-pressed="true"]');
+          if (previous) previous.setAttribute('aria-pressed', 'false');
+          option.setAttribute('aria-pressed', 'true');
+          selectedCommand = command;
+          var prefix = command[0].charAt(0);
+          details.textContent = option.textContent + ' - ' + command[1];
+          if (prefix === '!') details.textContent += '\nRuns when fldigi reaches this tag in the transmit stream.';
+          if (prefix === '@') details.textContent += '\nPlace this tag before <RX>. It runs after fldigi returns to receive.';
+          insert.disabled = false;
+          append.disabled = false;
+        };
+        option.ondblclick = function() { appendCommand(command); };
+        list.appendChild(option);
+      });
+    }
+
+    COMMAND_GROUPS.forEach(function(group, index) {
+      var tab = document.createElement('button');
+      tab.type = 'button';
+      tab.id = 'commandTab' + index;
+      tab.className = 'command-tab';
+      tab.textContent = group[0];
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-controls', panel.id);
+      tab.onclick = function() { activateGroup(index); };
+      tab.onkeydown = function(e) {
+        var next = index;
+        var count = COMMAND_GROUPS.length;
+        if (e.key === 'ArrowRight') next = (index + 1) % count;
+        else if (e.key === 'ArrowLeft') next = (index + count - 1) % count;
+        else if (e.key === 'Home') next = 0;
+        else if (e.key === 'End') next = count - 1;
+        else return;
+        e.preventDefault();
+        activateGroup(next);
+        tabButtons[next].focus();
+      };
+      tabButtons.push(tab);
+      tabs.appendChild(tab);
+    });
+    filter.oninput = renderCommands;
+    insert.onclick = function() { if (selectedCommand) writeCommand(selectedCommand, true); };
+    append.onclick = function() { if (selectedCommand) appendCommand(selectedCommand); };
+    activateGroup(0);
+  }
+
+  function symbolSvg(drawing, transform) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="-1.12 -1.12 2.24 2.24" aria-hidden="true"><g fill="currentColor" stroke="currentColor" stroke-width=".06" stroke-linejoin="round"' +
+      (transform ? ' transform="' + transform + '"' : '') + '>' + drawing + '</g></svg>';
+  }
+
+  // SVG symbol previews adapted from FLTK 1.3 (Bill Spitzak and others); see THIRD-PARTY-NOTICES.md.
+  function roundArrowPath(step) {
+    var points = ['M-.1 0L-1 0L-1 .9'];
+    for (var i = 0; i < 27; i++) {
+      var angle = (140 - step * i) * Math.PI / 180;
+      var radius = 1 - .005 * i;
+      points.push('L' + (Math.cos(angle) * radius).toFixed(4) + ' ' + (Math.sin(angle) * radius).toFixed(4));
+    }
+    for (var j = 0; j < 28; j++) {
+      var innerAngle = (140 - step * 27 + step * j) * Math.PI / 180;
+      var innerRadius = 1 - .005 * 27 - .015 * j;
+      points.push('L' + (Math.cos(innerAngle) * innerRadius).toFixed(4) + ' ' + (Math.sin(innerAngle) * innerRadius).toFixed(4));
+    }
+    return '<path d="' + points.join('') + 'Z"/>';
+  }
+
+  var FLTK_SHAPES = {
+    arrow: '<path d="M-.8-.4H0V-.8L.8 0 0 .8V.4H-.8Z"/>',
+    triangle: '<path d="M-.3-.8L.5 0-.3 .8Z"/>',
+    doubleTriangle: '<path d="M-.7-.8L.1 0-.7 .8ZM.1-.8L.9 0 .1 .8Z"/>',
+    arrowBar: '<path d="M-.6-.8L.2 0-.6 .8Z"/><path d="M.2-.8H.6V.8H.2Z"/>',
+    arrowBox: '<path d="M-.6-.8L.2 0-.6 .8Z"/><path d="M.2-.8H.6V.8H.2Z" fill="none"/>',
+    barArrow: '<path d="M-.5-.8H-.1V.8H-.5ZM.1-.8L.9 0 .1 .8Z"/>',
+    thinArrow: '<path d="M-1 0H.65" fill="none"/><path d="M.65-.1L1 0 .65 .1Z"/>',
+    chevronLight: '<path d="M-.8 .8V-.8L.8 0" fill="none" stroke="#ddd"/><path d="M-.8 .8L.8 0" fill="none" stroke="#555"/>',
+    chevronDark: '<path d="M-.8 .8V-.8L.8 0" fill="none" stroke="#555"/><path d="M-.8 .8L.8 0" fill="none" stroke="#ddd"/>',
+    refreshHalf: roundArrowPath(5),
+    reload: roundArrowPath(10),
+    undo: roundArrowPath(6)
+  };
+
+  var SYMBOLS = [
+    { code: '@->', icon: symbolSvg(FLTK_SHAPES.arrow) },
+    { code: '@>', icon: symbolSvg(FLTK_SHAPES.triangle) },
+    { code: '@>>', icon: symbolSvg(FLTK_SHAPES.doubleTriangle) },
+    { code: '@>|', icon: symbolSvg(FLTK_SHAPES.arrowBar) },
+    { code: '@>[]', icon: symbolSvg(FLTK_SHAPES.arrowBox) },
+    { code: '@|>', icon: symbolSvg(FLTK_SHAPES.barArrow) },
+    { code: '@<-', icon: symbolSvg(FLTK_SHAPES.arrow, 'rotate(180)') },
+    { code: '@<', icon: symbolSvg(FLTK_SHAPES.triangle, 'rotate(180)') },
+    { code: '@<<', icon: symbolSvg(FLTK_SHAPES.doubleTriangle, 'rotate(180)') },
+    { code: '@|<', icon: symbolSvg(FLTK_SHAPES.arrowBar, 'rotate(180)') },
+    { code: '@[]<', icon: symbolSvg(FLTK_SHAPES.arrowBox, 'rotate(180)') },
+    { code: '@<|', icon: symbolSvg(FLTK_SHAPES.barArrow, 'rotate(180)') },
+    { code: '@<->', icon: symbolSvg('<path d="M-.95 0-.15-.8V-.4H.15V-.8L.95 0 .15 .8V.4H-.15V.8Z"/>') },
+    { code: '@-->', icon: symbolSvg(FLTK_SHAPES.thinArrow) },
+    { code: '@+', icon: symbolSvg('<path d="M-.9-.15H-.15V-.9H.15V-.15H.9V.15H.15V.9H-.15V.15H-.9Z"/>') },
+    { code: '@->|', icon: symbolSvg(FLTK_SHAPES.arrow + '<path d="M.6-.8H.9V.8H.6Z"/>') },
+    { code: '@||', icon: symbolSvg('<path d="M-.6-.8H-.1V.8H-.6ZM.1-.8H.6V.8H.1Z"/>') },
+    { code: '@arrow', icon: symbolSvg(FLTK_SHAPES.thinArrow) },
+    { code: '@returnarrow', icon: symbolSvg('<path d="M-.7 0-.2 .5V.08H.46V-.5M-.2-.08V-.5" fill="none" stroke="#ddd"/><path d="M-.7 0-.2-.5" fill="none" stroke="#111"/><path d="M-.12-.08H.3V-.5H.46" fill="none" stroke="#777"/>') },
+    { code: '@square', icon: symbolSvg('<path d="M-1-1H1V1H-1Z"/>') },
+    { code: '@circle', icon: symbolSvg('<circle r="1"/>') },
+    { code: '@line', icon: symbolSvg('<path d="M-1 0H1" fill="none"/>') },
+    { code: '@menu', icon: symbolSvg('<path d="M-.65-.25H.65V.85H-.65ZM-.65-.6H.65V-1H-.65Z"/>') },
+    { code: '@UpArrow', icon: symbolSvg(FLTK_SHAPES.chevronLight) },
+    { code: '@DnArrow', icon: symbolSvg(FLTK_SHAPES.chevronDark) },
+    { code: '@search', icon: symbolSvg('<path d="M-.4 .13-1 .73-.73 1-.13 .4Z"/><circle cx=".2" cy="-.2" r=".6" fill="none" stroke-width=".22"/>') },
+    { code: '@filenew', icon: symbolSvg('<path d="M-.7-1H.1L.7-.4V1H-.7Z"/><path d="M.1-1V-.4H.7" fill="#ddd" stroke="#888"/>') },
+    { code: '@fileopen', icon: symbolSvg('<path d="M-1-.7-.9-.8H-.4L-.3-.7H.6V.7H-1Z"/><path d="M-1 .7-.6-.3H1L.6 .7Z" fill="#ddd" stroke="#888"/>') },
+    { code: '@filesave', icon: symbolSvg('<path d="M-.9-1H.9L1-.9V.9L.9 1H-.9L-1 .9V-.9Z"/><path d="M-.7-1H.7V-.4H-.7ZM-.7 0H.7V1H-.7Z" fill="#ddd" stroke="#888"/><path d="M-.5-.9H-.3V-.5H-.5Z"/>') },
+    { code: '@fileprint', icon: symbolSvg('<path d="M-.8 0H.8L1 .2V1H-1V.2Z"/><path d="M-.6 0V-1H.6V0Z" fill="#ddd" stroke="#888"/><path d="M-.6 .6H.6V1H-.6Z" fill="#ccc" stroke="#888"/>') },
+    { code: '@refresh', icon: symbolSvg(FLTK_SHAPES.refreshHalf + '<g transform="rotate(180)">' + FLTK_SHAPES.refreshHalf + '</g>') },
+    { code: '@reload', icon: symbolSvg(FLTK_SHAPES.reload, 'rotate(135) scale(.75)') },
+    { code: '@undo', icon: symbolSvg(FLTK_SHAPES.undo, 'translate(0 .2) scale(1 -1)') },
+    { code: '@redo', icon: symbolSvg(FLTK_SHAPES.undo, 'scale(-1 1) translate(0 .2) scale(1 -1)') }
+  ];
+
+  var ICON_MAP = {};
+  for (var s = 0; s < SYMBOLS.length; s++) {
+    ICON_MAP[SYMBOLS[s].code.substring(1)] = SYMBOLS[s].icon;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function formatFltkLabel(raw) {
+    if (!raw) return '-';
+    var parts = raw.split(' ');
+    var out = [];
+    for (var i = 0; i < parts.length; i++) {
+      var token = parts[i];
+      if (token.indexOf('@@') === 0) {
+        out.push(escapeHtml(token.substring(1)));
+      } else if (token.charAt(0) === '@' && token.length > 1) {
+        var spec = token.substring(1);
+        var scale = 1;
+        var rot = 0;
+        var flipX = false;
+        var flipY = false;
+
+        if (spec.charAt(0) === '#') {
+          spec = spec.substring(1);
+        }
+        if (spec.length >= 2 && (spec.charAt(0) === '+' || spec.charAt(0) === '-') && spec.charAt(1) >= '1' && spec.charAt(1) <= '9') {
+          var delta = parseInt(spec.substring(0, 2), 10);
+          scale = Math.max(0.65, 1 + delta * 0.08);
+          spec = spec.substring(2);
+        }
+        if (spec.charAt(0) === '$') {
+          flipX = true;
+          spec = spec.substring(1);
+        }
+        if (spec.charAt(0) === '%') {
+          flipY = true;
+          spec = spec.substring(1);
+        }
+        if (/^0\d{4}/.test(spec)) {
+          rot = -parseInt(spec.substring(1, 5), 10);
+          spec = spec.substring(5);
+        } else if (spec.length >= 2 && spec.charAt(0) >= '1' && spec.charAt(0) <= '9') {
+          var dirMap = { '1': 135, '2': 90, '3': 45, '4': 180, '5': 0, '6': 0, '7': -135, '8': -90, '9': -45 };
+          rot = dirMap[spec.charAt(0)] || 0;
+          spec = spec.substring(1);
+        }
+
+        if (ICON_MAP[spec]) {
+          var transforms = [];
+          if (scale !== 1) transforms.push('scale(' + scale.toFixed(2) + ')');
+          if (rot !== 0) transforms.push('rotate(' + rot + 'deg)');
+          if (flipX) transforms.push('scaleX(-1)');
+          if (flipY) transforms.push('scaleY(-1)');
+          var styleAttr = transforms.length ? ' style="transform:' + transforms.join(' ') + '"' : '';
+          out.push('<span class="sym"' + styleAttr + '>' + ICON_MAP[spec] + '</span>');
+        } else {
+          out.push(escapeHtml(token));
+        }
+      } else {
+        out.push(escapeHtml(token));
+      }
+    }
+    return out.join(' ');
+  }
+
+  function renderPalette() {
+    var pal = document.getElementById('symPalette');
+    pal.innerHTML = '';
+    for (var i = 0; i < SYMBOLS.length; i++) {
+      (function(sym) {
+        var btn = document.createElement('div');
+        btn.className = 'sym-btn';
+        btn.title = 'Append ' + sym.code;
+        btn.innerHTML = '<span>' + sym.icon + '</span>' + escapeHtml(sym.code);
+        btn.onclick = function() {
+          var inp = document.getElementById('editLabel');
+          var cur = inp.value;
+          inp.value = cur ? (cur + ' ' + sym.code) : sym.code;
+          macros[selectedIdx].label = inp.value;
+          renderGrid();
+        };
+        pal.appendChild(btn);
+      })(SYMBOLS[i]);
+    }
+  }
+
+  function renderGrid() {
+    var container = document.getElementById('banksContainer');
+    container.innerHTML = '';
+    for (var bank = 0; bank < 4; bank++) {
+      var title = document.createElement('div');
+      title.className = 'bank-title';
+      title.textContent = 'Bank ' + (bank + 1) + ' (F1 - F12)';
+      container.appendChild(title);
+
+      var grid = document.createElement('div');
+      grid.className = 'grid';
+
+      for (var col = 0; col < 12; col++) {
+        (function(idx, colIdx) {
+          var m = macros[idx];
+          var grpClass = 'grp-' + Math.floor(colIdx / 4);
+          var isFilled = (m.label.length > 0 || m.body.length > 0);
+          var slot = document.createElement('div');
+          slot.className = 'slot ' + grpClass + (isFilled ? '' : ' empty') + (idx === selectedIdx ? ' selected' : '');
+          slot.draggable = true;
+          slot.innerHTML = '<div class="slot-num">F' + (colIdx + 1) + ' (#' + (idx + 1) + ')</div><div class="slot-lbl">' + formatFltkLabel(m.label) + '</div>';
+
+          slot.onclick = function() { selectSlot(idx); };
+          slot.ondragstart = function(e) {
+            dragSrcIdx = idx;
+            if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+          };
+          slot.ondragover = function(e) {
+            e.preventDefault();
+            slot.classList.add('drag-over');
+          };
+          slot.ondragleave = function() {
+            slot.classList.remove('drag-over');
+          };
+          slot.ondrop = function(e) {
+            e.preventDefault();
+            slot.classList.remove('drag-over');
+            if (dragSrcIdx === null || dragSrcIdx === idx) return;
+            moveMacro(dragSrcIdx, idx);
+            dragSrcIdx = null;
+          };
+
+          grid.appendChild(slot);
+        })(bank * 12 + col, col);
+      }
+      container.appendChild(grid);
+    }
+  }
+
+  function selectSlot(idx) {
+    selectedIdx = idx;
+    document.getElementById('editHeader').textContent = 'Selected Button: Macro #' + (idx + 1) + ' (index ' + idx + ')';
+    document.getElementById('editLabel').value = macros[idx].label;
+    document.getElementById('editBody').value = macros[idx].body;
+    renderGrid();
+  }
+
+  function moveMacro(from, to) {
+    var mode = document.getElementById('dragMode').value;
+    if (mode === 'swap') {
+      var temp = macros[from];
+      macros[from] = macros[to];
+      macros[to] = temp;
+    } else {
+      var moved = macros.splice(from, 1)[0];
+      macros.splice(to, 0, moved);
+    }
+    selectSlot(to);
+  }
+
+  document.getElementById('editLabel').oninput = function(e) {
+    macros[selectedIdx].label = e.target.value;
+    renderGrid();
+  };
+
+  document.getElementById('editBody').oninput = function(e) {
+    macros[selectedIdx].body = e.target.value;
+    renderGrid();
+  };
+
+  document.getElementById('fileInput').onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    currentFileName = file.name;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      parseMdf(ev.target.result);
+    };
+    reader.readAsText(file);
+  };
+
+  function decodeMdfBody(lines) {
+    return lines.map(function(line) {
+      // fldigi concatenates physical lines; the last \n marker supplies the actual newline.
+      var marker = line.lastIndexOf('\\n');
+      return marker < 0 ? line : line.substring(0, marker) + '\n';
+    }).join('');
+  }
+
+  function parseMdf(text) {
+    for (var i = 0; i < TOTAL; i++) {
+      macros[i] = { label: '', body: '' };
+    }
+    var cleanText = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+    var lines = cleanText.split('\n');
+    var currentIdx = -1;
+    var bodyLines = [];
+
+    for (var j = 0; j < lines.length; j++) {
+      var line = lines[j];
+      var match = line.match(/^\/{1,2}\$\s*(\d+)\s*(.*)$/);
+      if (match) {
+        if (currentIdx >= 0 && currentIdx < TOTAL) {
+          macros[currentIdx].body = decodeMdfBody(bodyLines);
+        }
+        currentIdx = parseInt(match[1], 10);
+        bodyLines = [];
+        if (currentIdx >= 0 && currentIdx < TOTAL) {
+          macros[currentIdx].label = match[2].trim();
+        }
+      } else if (currentIdx >= 0 && currentIdx < TOTAL) {
+        if (line.indexOf('//') === 0) {
+          continue;
+        }
+        bodyLines.push(line);
+      }
+    }
+    if (currentIdx >= 0 && currentIdx < TOTAL) {
+      macros[currentIdx].body = decodeMdfBody(bodyLines);
+    }
+
+    var loadedCount = 0;
+    for (var k = 0; k < TOTAL; k++) {
+      if (macros[k].label || macros[k].body) loadedCount++;
+    }
+    document.getElementById('status').textContent = 'Loaded: ' + currentFileName + ' (' + loadedCount + ' active buttons)';
+    selectSlot(0);
+  }
+
+  document.getElementById('downloadBtn').onclick = function() {
+    var out = [
+      '//fldigi macro definition file extended',
+      '// This file defines the macro structure(s) for the digital modem program, fldigi',
+      '// It also serves as a basis for any macros that are written by the user',
+      '//',
+      '// The top line of this file should always be the first line in every macro ',
+      '// definition file (.mdf) for the fldigi program to recognize it as such.',
+      '//',
+      ''
+    ];
+
+    for (var i = 0; i < TOTAL; i++) {
+      out.push('//');
+      out.push('// Macro # ' + (i + 1));
+      out.push('/$ ' + i + ' ' + macros[i].label);
+      if (macros[i].body) {
+        out.push(macros[i].body.replace(/\n/g, '\\n\n'));
+      }
+      out.push('');
+    }
+
+    var blob = new Blob([out.join('\n').replace(/\n/g, '\r\n')], { type: 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = currentFileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  renderPalette();
+  renderCommandPicker();
+  renderGrid();
+})();
+</script>
+</body>
+</html>
