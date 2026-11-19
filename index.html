@@ -55,6 +55,10 @@
   .sym-btn:hover { background: #505050; border-color: #888; }
   .sym-btn span { display: block; font-size: 15px; margin-bottom: 2px; }
   .hint { font-size: 11px; color: #aaa; margin: 0; line-height: 1.5; }
+  #exportReview { box-sizing: border-box; max-width: min(36rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); background: #2b2b2b; color: #f0f0f0; border: 1px solid #888; border-radius: 6px; padding: 18px; }
+  #exportReview::backdrop { background: rgba(0,0,0,0.65); }
+  #exportReview .command-actions { justify-content: flex-end; }
+  #cancelExport { background: #3a3a3a; }
   @media (max-width: 960px) {
     .bottom-panel { grid-template-columns: minmax(0, 1fr); }
   }
@@ -77,6 +81,16 @@
 </div>
 
 <div id="banksContainer"></div>
+
+<dialog id="exportReview" aria-labelledby="exportReviewTitle" aria-describedby="exportReviewIntro">
+  <h2 id="exportReviewTitle">Review before exporting</h2>
+  <p id="exportReviewIntro">Macro commands can have side effects in fldigi. Saving a copy preserves commands; it does not make them safe to run.</p>
+  <ul id="exportWarnings"></ul>
+  <div class="command-actions">
+    <button type="button" id="cancelExport" autofocus>Back to editor</button>
+    <button type="button" id="confirmExport">Save copy anyway</button>
+  </div>
+</dialog>
 
 <div class="bottom-panel">
   <div class="editor-box">
@@ -148,6 +162,9 @@
   var selectedIdx = 0;
   var dragSrcIdx = null;
   var currentFileName = 'macros_updated.mdf';
+  var importWarnings = [];
+  var exportReview = document.getElementById('exportReview');
+  var substitutionTag = /^(?:(?:MYCALL|MYNAME|MYQTH|MYLOC|MYRST|ANTENNA|CALL|NAME|QTH|LOC|RST|FREQ|MODE|DIGI|VER|QSOTIME)|(?:ILDT|IZDT|LDT|ZDT|LT|ZT|LD|ZD)(?::[^\r\n]*)?)$/;
 
   var MODEM_PRESETS = [
     '8PSK250 8PSK500 8PSK1000 8PSK1333 BPSK1000 BPSK125 BPSK250 BPSK31 BPSK500 BPSK63 BPSK63F',
@@ -733,10 +750,13 @@
   document.getElementById('fileInput').onchange = function(e) {
     var file = e.target.files[0];
     if (!file) return;
-    currentFileName = file.name;
     var reader = new FileReader();
     reader.onload = function(ev) {
+      currentFileName = file.name;
       parseMdf(ev.target.result);
+    };
+    reader.onerror = function() {
+      document.getElementById('status').textContent = 'Could not read the selected file. The editor contents were not changed.';
     };
     reader.readAsText(file);
   };
@@ -757,6 +777,12 @@
     var lines = cleanText.split('\n');
     var currentIdx = -1;
     var bodyLines = [];
+    var seen = new Set();
+    var duplicates = 0;
+    var outOfRange = 0;
+    var skipped = 0;
+    var truncated = 0;
+    importWarnings = [];
 
     for (var j = 0; j < lines.length; j++) {
       var line = lines[j];
@@ -768,13 +794,21 @@
         currentIdx = parseInt(match[1], 10);
         bodyLines = [];
         if (currentIdx >= 0 && currentIdx < TOTAL) {
+          if (seen.has(currentIdx)) duplicates++;
+          seen.add(currentIdx);
           macros[currentIdx].label = match[2].trim();
+        } else {
+          outOfRange++;
         }
       } else if (currentIdx >= 0 && currentIdx < TOTAL) {
         if (line.indexOf('//') === 0) {
           continue;
         }
+        var marker = line.lastIndexOf('\\n');
+        if (marker >= 0 && marker + 2 < line.length) truncated++;
         bodyLines.push(line);
+      } else if (seen.size === 0 && outOfRange === 0 && line.trim() && line.indexOf('//') !== 0) {
+        skipped++;
       }
     }
     if (currentIdx >= 0 && currentIdx < TOTAL) {
@@ -785,11 +819,63 @@
     for (var k = 0; k < TOTAL; k++) {
       if (macros[k].label || macros[k].body) loadedCount++;
     }
-    document.getElementById('status').textContent = 'Loaded: ' + currentFileName + ' (' + loadedCount + ' active buttons)';
+    if (!seen.size) importWarnings.push('No supported macro slots were found in the input.');
+    if (duplicates) importWarnings.push('Duplicate slot definitions replaced earlier entries: ' + duplicates + '.');
+    if (outOfRange) importWarnings.push('Slot definitions outside the supported range were skipped: ' + outOfRange + '.');
+    if (skipped) importWarnings.push('Unrecognized lines before the first slot were skipped: ' + skipped + '.');
+    if (truncated) importWarnings.push('Text after a newline marker was discarded on ' + truncated + ' line(s).');
+    document.getElementById('status').textContent = 'Loaded: ' + currentFileName + ' (' + loadedCount + ' active buttons)' +
+      (importWarnings.length ? ' - import warnings on export' : '');
     selectSlot(0);
   }
 
+  function mdfDownloadName(fileName) {
+    var stem = fileName.replace(/\.[^.]*$/, '').replace(/[<>:"/\\|?*\x00-\x1f\u202a-\u202e\u2066-\u2069]/g, '_')
+      .replace(/^[. ]+|[. ]+$/g, '');
+    if (/^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/i.test(stem)) stem = '_' + stem;
+    return (stem || 'macros_updated') + '.mdf';
+  }
+
   document.getElementById('downloadBtn').onclick = function() {
+    var warnings = importWarnings.slice();
+    var flaggedSlots = [];
+    macros.forEach(function(macro, index) {
+      var tags = /<(?:([^<>]*)>|)/g;
+      var match;
+      while ((match = tags.exec(macro.body)) !== null) {
+        if (!match[1] || !substitutionTag.test(match[1])) {
+          flaggedSlots.push(index + 1);
+          break;
+        }
+      }
+    });
+    if (flaggedSlots.length) {
+      warnings.push('Review these slots for commands with side effects, unknown tags, or incomplete tag syntax: ' +
+        flaggedSlots.join(', ') + '.');
+    }
+    if (!warnings.length) {
+      downloadMdf();
+      return;
+    }
+    var list = document.getElementById('exportWarnings');
+    list.textContent = '';
+    warnings.forEach(function(warning) {
+      var item = document.createElement('li');
+      item.textContent = warning;
+      list.appendChild(item);
+    });
+    exportReview.showModal();
+  };
+
+  document.getElementById('cancelExport').onclick = function() {
+    exportReview.close();
+  };
+  document.getElementById('confirmExport').onclick = function() {
+    exportReview.close();
+    downloadMdf();
+  };
+
+  function downloadMdf() {
     var out = [
       '//fldigi macro definition file extended',
       '// This file defines the macro structure(s) for the digital modem program, fldigi',
@@ -814,11 +900,11 @@
     var blob = new Blob([out.join('\n').replace(/\n/g, '\r\n')], { type: 'text/plain;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = currentFileName;
+    a.download = mdfDownloadName(currentFileName);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  };
+  }
 
   renderPalette();
   renderCommandPicker();
