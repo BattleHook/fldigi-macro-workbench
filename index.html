@@ -83,8 +83,8 @@
 <div id="banksContainer"></div>
 
 <dialog id="exportReview" aria-labelledby="exportReviewTitle" aria-describedby="exportReviewIntro">
-  <h2 id="exportReviewTitle">Review before exporting</h2>
-  <p id="exportReviewIntro">Macro commands can have side effects in fldigi. Saving a copy preserves commands; it does not make them safe to run.</p>
+  <h2 id="exportReviewTitle">Review import warnings</h2>
+  <p id="exportReviewIntro">Check these import issues before saving a copy.</p>
   <ul id="exportWarnings"></ul>
   <div class="command-actions">
     <button type="button" id="cancelExport" autofocus>Back to editor</button>
@@ -164,7 +164,6 @@
   var currentFileName = 'macros_updated.mdf';
   var importWarnings = [];
   var exportReview = document.getElementById('exportReview');
-  var substitutionTag = /^(?:(?:MYCALL|MYNAME|MYQTH|MYLOC|MYRST|ANTENNA|CALL|NAME|QTH|LOC|RST|FREQ|MODE|DIGI|VER|QSOTIME)|(?:ILDT|IZDT|LDT|ZDT|LT|ZT|LD|ZD)(?::[^\r\n]*)?)$/;
 
   var MODEM_PRESETS = [
     '8PSK250 8PSK500 8PSK1000 8PSK1333 BPSK1000 BPSK125 BPSK250 BPSK31 BPSK500 BPSK63 BPSK63F',
@@ -837,29 +836,13 @@
   }
 
   document.getElementById('downloadBtn').onclick = function() {
-    var warnings = importWarnings.slice();
-    var flaggedSlots = [];
-    macros.forEach(function(macro, index) {
-      var tags = /<(?:([^<>]*)>|)/g;
-      var match;
-      while ((match = tags.exec(macro.body)) !== null) {
-        if (!match[1] || !substitutionTag.test(match[1])) {
-          flaggedSlots.push(index + 1);
-          break;
-        }
-      }
-    });
-    if (flaggedSlots.length) {
-      warnings.push('Review these slots for commands with side effects, unknown tags, or incomplete tag syntax: ' +
-        flaggedSlots.join(', ') + '.');
-    }
-    if (!warnings.length) {
+    if (!importWarnings.length) {
       downloadMdf();
       return;
     }
     var list = document.getElementById('exportWarnings');
     list.textContent = '';
-    warnings.forEach(function(warning) {
+    importWarnings.forEach(function(warning) {
       var item = document.createElement('li');
       item.textContent = warning;
       list.appendChild(item);
